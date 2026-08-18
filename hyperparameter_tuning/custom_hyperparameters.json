@@ -1,0 +1,344 @@
+{
+  "best_parameters": {
+    "adjoint_sensing_operator": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 64,
+          "step_size": 0.03,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 986,
+        "minimum_objective_value": 1.011278226144361e-14,
+        "recovery_parameters": {}
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.1,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 1000,
+        "minimum_objective_value": 5.7239258567728614e-21,
+        "recovery_parameters": {}
+      }
+    },
+    "alternating_projections": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.1,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 938,
+        "minimum_objective_value": 8.586539851807452e-15,
+        "recovery_parameters": {
+          "iters": 3
+        }
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.3,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 187,
+        "minimum_objective_value": 0.0,
+        "recovery_parameters": {
+          "iters": 5
+        }
+      }
+    },
+    "burer_monteiro_gradient_descent": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.1,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 938,
+        "minimum_objective_value": 6.554761074195614e-15,
+        "recovery_parameters": {
+          "iters": 10
+        }
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": true,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.1,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 829,
+        "minimum_objective_value": 0.0,
+        "recovery_parameters": {
+          "iters": 5
+        }
+      }
+    },
+    "iterative_hard_thresholding": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.1,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 996,
+        "minimum_objective_value": 6.130549610035242e-15,
+        "recovery_parameters": {
+          "iters": 2
+        }
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.3,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 476,
+        "minimum_objective_value": 0.0,
+        "recovery_parameters": {
+          "iters": 2
+        }
+      }
+    },
+    "pseudoinverse": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.3,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 788,
+        "minimum_objective_value": 3.716763208376451e-15,
+        "recovery_parameters": {
+          "iters": 10
+        }
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.3,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 1000,
+        "minimum_objective_value": 4.8107295635343446e-26,
+        "recovery_parameters": {
+          "iters": 10
+        }
+      }
+    },
+    "rangefinder": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": false,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 1e-05,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 64,
+          "step_size": 0.03,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 856,
+        "minimum_objective_value": 7.731069673333479e-10,
+        "recovery_parameters": {}
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": true,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 1e-05,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 64,
+          "step_size": 0.3,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 977,
+        "minimum_objective_value": 2.3969053408734453e-09,
+        "recovery_parameters": {}
+      }
+    },
+    "spectral_iterative_hard_thresholding": {
+      "matrix_regression": {
+        "base_optimizer_parameters": {
+          "linesearch": true,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.003,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 993,
+        "minimum_objective_value": 8.971979696070775e-06,
+        "recovery_parameters": {
+          "iters": 2
+        }
+      },
+      "singular_value_sum": {
+        "base_optimizer_parameters": {
+          "linesearch": true,
+          "sampling_dist": "gaussian",
+          "sampling_radius": 0.001,
+          "sampling_scheme": "full-rank",
+          "samps_per_iter": 256,
+          "step_size": 0.003,
+          "target_rank": 3
+        },
+        "iteration_of_minimum": 999,
+        "minimum_objective_value": 5.256619715510169e-06,
+        "recovery_parameters": {
+          "iters": 2
+        }
+      }
+    }
+  },
+  "experiment": {
+    "candidate_values": {
+      "iters": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "linesearch": [
+        false,
+        true
+      ],
+      "sampling_dist": [
+        "gaussian",
+        "rademacher"
+      ],
+      "sampling_radius": [
+        1e-05,
+        0.0001,
+        0.001,
+        0.01,
+        0.1
+      ],
+      "sampling_scheme": [
+        "full-rank",
+        "rank_one"
+      ],
+      "samps_per_iter": [
+        16,
+        32,
+        64,
+        128,
+        256
+      ],
+      "step_size": [
+        0.003,
+        0.01,
+        0.03,
+        0.1,
+        0.3
+      ]
+    },
+    "data_seed": 2025,
+    "initialization_seed": 2026,
+    "iterations_per_configuration": 1000,
+    "matrix_shape": [
+      30,
+      30
+    ],
+    "objective_noise": 0.0,
+    "objective_rank": 3,
+    "optimizer_seed": 2027,
+    "search_parameters_by_method": {
+      "adjoint_sensing_operator": [
+        "samps_per_iter",
+        "step_size",
+        "linesearch",
+        "sampling_scheme",
+        "sampling_dist"
+      ],
+      "alternating_projections": [
+        "iters",
+        "samps_per_iter",
+        "step_size",
+        "linesearch",
+        "sampling_scheme",
+        "sampling_dist"
+      ],
+      "burer_monteiro_gradient_descent": [
+        "iters",
+        "samps_per_iter",
+        "step_size",
+        "linesearch",
+        "sampling_scheme",
+        "sampling_dist"
+      ],
+      "iterative_hard_thresholding": [
+        "iters",
+        "samps_per_iter",
+        "step_size",
+        "linesearch",
+        "sampling_scheme",
+        "sampling_dist"
+      ],
+      "pseudoinverse": [
+        "iters",
+        "samps_per_iter",
+        "step_size",
+        "linesearch",
+        "sampling_scheme",
+        "sampling_dist"
+      ],
+      "rangefinder": [
+        "sampling_radius",
+        "step_size",
+        "linesearch"
+      ],
+      "spectral_iterative_hard_thresholding": [
+        "iters",
+        "samps_per_iter",
+        "step_size",
+        "linesearch",
+        "sampling_scheme",
+        "sampling_dist"
+      ]
+    },
+    "search_strategy": "single-pass sequential coordinate search",
+    "status": "complete"
+  }
+}
