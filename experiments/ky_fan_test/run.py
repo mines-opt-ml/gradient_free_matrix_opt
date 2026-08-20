@@ -13,7 +13,7 @@ from recovery.registry import MATRIX_RECOVERY_REGISTRY
 
 ## Parameters
 step_size = 0.5
-max_queries = 5e4
+max_queries = 5e5
 target_rank = 3
 lozo_rank = 8
 num_samples_per_iter = 250
@@ -26,7 +26,7 @@ n = 30
 recovery_params = {"r": target_rank, "iters": 50}
 
 # Random key for JAX
-seed = 8566
+seed = 2028
 key = random.PRNGKey(seed)
 k1, k2 = random.split(key, 2)
 

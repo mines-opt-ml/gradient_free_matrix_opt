@@ -1,13 +1,12 @@
-"""Shared setup for the final 30-by-30 ZOOM experiments.
+"""Shared setup for the final 30-by-30 ZOOM query experiment.
 
-Both experiment scripts read their tuned configurations from
-``hyperparameter_tuning/best_hyperparameters.json`` and checkpoint completed
+The experiment script reads its tuned configurations from
+``hyperparameter_tuning/best_hyperparameters.json`` and checkpoints completed
 runs to CSV, so an interrupted invocation can be resumed by rerunning it.
 """
 
 from __future__ import annotations
 
-import contextlib
 import csv
 import json
 import math
@@ -32,17 +31,18 @@ EXPERIMENT_DIR = Path(__file__).resolve().parent
 DATA_DIR = EXPERIMENT_DIR / "data"
 BEST_PARAMETERS_FILE = PROJECT_ROOT / "hyperparameter_tuning" / "best_hyperparameters.json"
 QUERY_RESULTS_FILE = DATA_DIR / "objective_vs_queries.csv"
-SAMPLE_RESULTS_FILE = DATA_DIR / "samples_vs_minimum.csv"
 
 # The query budget is the real stopping condition; ITERATIONS is only a cap so a
 # method that somehow spends no queries cannot loop forever. It must stay above
-# MAX_QUERIES / min(SAMPLE_COUNTS), or the cheapest arm of the sample sweep would
-# stop early and be compared against runs that got the full budget.
+# MAX_QUERIES divided by the smallest tuned samps_per_iter, or a cheap
+# configuration would stop early and be compared against runs that got the full
+# budget.
 MAX_QUERIES = 100_000
 ITERATIONS = 20_000
-SAMPLE_COUNTS = (8, 64, 128, 256, 1024)
+# Each method/objective pair is run this many times, varying only the
+# optimizer seed: the problem data and the starting point stay fixed.
+NUM_RUNS = 10
 OBJECTIVE_NAMES = ("ky_fan_regression", "singular_value_sum")
-RANGEFINDER = "rangefinder"
 
 CSV_FIELDS = (
     "experiment",
@@ -62,29 +62,10 @@ CSV_FIELDS = (
 )
 
 
-class NumericalRecoveryError(RuntimeError):
-    """A recovery method explicitly reported a numerical failure."""
-
-
-class FailOnRecoveryOutput:
-    """Turn printing inside a recovery method into a fail-fast error.
-
-    ``iterative_hard_thresholding`` prints the offending matrix and breaks out of
-    its loop when it goes non-finite, returning a degraded gradient estimate that
-    is otherwise indistinguishable from a good one. Treating that print as an
-    error keeps the failure out of the recorded results.
-    """
-
-    def write(self, output: str) -> int:
-        if output.strip():
-            preview = output.strip().replace("\n", " ")[:120]
-            raise NumericalRecoveryError(
-                f"A recovery method wrote unexpected output, which may indicate a numerical failure: {preview}"
-            )
-        return len(output)
-
-    def flush(self) -> None:
-        return None
+def run_seeds(tuning_results: dict[str, Any]) -> list[int]:
+    """The optimizer seeds for the NUM_RUNS independent runs of each pair."""
+    base_seed = tuning_results["experiment"]["optimizer_seed"]
+    return [base_seed + run_index for run_index in range(NUM_RUNS)]
 
 
 def load_tuning_results() -> dict[str, Any]:
@@ -147,17 +128,14 @@ def build_optimizer(
     tuning_results: dict[str, Any],
     method: str,
     objective_name: str,
+    optimizer_seed: int,
     max_queries: int = MAX_QUERIES,
-    samps_per_iter: int | None = None,
 ) -> tuple[BaseMatrixOptimizer, str]:
     """Construct an optimizer from one saved winning configuration."""
     experiment = tuning_results["experiment"]
     winner = tuning_results["best_parameters"][method][objective_name]
     base_parameters = winner["base_optimizer_parameters"].copy()
     recovery_parameters = winner["recovery_parameters"].copy()
-
-    if samps_per_iter is not None:
-        base_parameters["samps_per_iter"] = samps_per_iter
 
     target_rank = base_parameters["target_rank"]
     matrix_size = experiment["matrix_shape"][0]
@@ -171,7 +149,7 @@ def build_optimizer(
 
     optimizer = BaseMatrixOptimizer(
         X0=make_initial_matrix(matrix_size, experiment["initialization_seed"]),
-        rand_seed=experiment["optimizer_seed"],
+        rand_seed=optimizer_seed,
         obj_func=objective,
         samps_per_iter=base_parameters["samps_per_iter"],
         step_size=base_parameters["step_size"],
@@ -179,7 +157,7 @@ def build_optimizer(
         target_obj_func_val=-math.inf,
         max_queries=max_queries,
         max_time=sys.maxsize,
-        report=False,
+        report=True,
         linesearch=base_parameters["linesearch"],
         sampling_scheme=base_parameters["sampling_scheme"],
         sampling_dist=base_parameters["sampling_dist"],
@@ -188,13 +166,14 @@ def build_optimizer(
     )
 
     # ITERATIONS is deliberately absent: it is a safety cap, not a parameter of
-    # the experiment, and runs are resumed by matching against this string.
+    # the experiment. The optimizer seed is also absent: it is the per-run
+    # variable, recorded in the CSV's random_seed column instead. Runs are
+    # resumed by matching against this string.
     exact_configuration = {
         "max_queries": max_queries,
         "matrix_shape": experiment["matrix_shape"],
         "data_seed": experiment["data_seed"],
         "initialization_seed": experiment["initialization_seed"],
-        "optimizer_seed": experiment["optimizer_seed"],
         "objective_noise": experiment["objective_noise"],
         "base_optimizer_parameters": base_parameters,
         "recovery_parameters": recovery_parameters,
@@ -230,11 +209,8 @@ def run_optimizer(
     start_time = time.perf_counter()
 
     for iteration in range(1, iterations + 1):
-        # Only the recovery methods are held to the no-printing rule; redirecting
-        # anything wider turns our own output into a spurious numerical failure.
-        with contextlib.redirect_stdout(FailOnRecoveryOutput()):
-            optimizer.step()
-
+        optimizer.step()
+        optimizer.report_progress(False)
         objective_value = float(optimizer.function_values[-1])
         if not math.isfinite(objective_value):
             raise FloatingPointError(f"Non-finite objective at optimizer iteration {iteration}")
@@ -289,46 +265,11 @@ def append_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         os.fsync(file.fileno())
 
 
-def replace_csv(path: Path, rows: list[dict[str, Any]]) -> None:
-    """Atomically replace a CSV after refreshing existing result rows."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_suffix(path.suffix + ".tmp")
-    with temporary_path.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
-        file.flush()
-        os.fsync(file.fileno())
-    os.replace(temporary_path, path)
-
-
-def summarize_partial_run(optimizer: BaseMatrixOptimizer) -> dict[str, int | float] | None:
-    """Summarize completed finite iterations preceding a failed step."""
-    finite_points = []
-    for iteration, value in enumerate(optimizer.function_values[1:], start=1):
-        objective_value = float(value)
-        if math.isfinite(objective_value):
-            finite_points.append((iteration, objective_value))
-
-    if not finite_points:
-        return None
-
-    iteration_of_minimum, minimum_value = min(finite_points, key=lambda point: point[1])
-    last_finite_iteration, last_finite_value = finite_points[-1]
-    return {
-        "completed_iterations": last_finite_iteration,
-        "final_queries": int(optimizer.query_vec[last_finite_iteration]),
-        "final_objective_value": last_finite_value,
-        "minimum_objective_value": minimum_value,
-        "iteration_of_minimum": iteration_of_minimum,
-    }
-
-
 def result_row(
     experiment_name: str,
     method: str,
     objective_name: str,
-    sample_count: int | str,
+    sample_count: int,
     optimizer_seed: int,
     configuration_json: str,
     result: dict[str, Any],
@@ -336,7 +277,7 @@ def result_row(
     queries: int,
     objective_value: float,
 ) -> dict[str, Any]:
-    """Record one successful measurement, either a trace point or a run summary."""
+    """Record one successful trace point."""
     return {
         "experiment": experiment_name,
         "algorithm": method,
@@ -359,37 +300,35 @@ def failure_row(
     experiment_name: str,
     method: str,
     objective_name: str,
-    sample_count: int | str,
+    sample_count: int,
     optimizer_seed: int,
     configuration_json: str,
     error: Exception,
-    partial_result: dict[str, int | float] | None = None,
-    elapsed_seconds: float | str = "",
 ) -> dict[str, Any]:
-    """Record a failed run, including any completed finite iterations."""
-    partial_result = partial_result or {}
+    """Record a failed run."""
     return {
         "experiment": experiment_name,
         "algorithm": method,
         "objective": objective_name,
-        "iteration": partial_result.get("completed_iterations", ""),
-        "queries": partial_result.get("final_queries", ""),
+        "iteration": "",
+        "queries": "",
         "samps_per_iter": sample_count,
-        "objective_value": partial_result.get("final_objective_value", ""),
-        "minimum_objective_value": partial_result.get("minimum_objective_value", ""),
-        "iteration_of_minimum": partial_result.get("iteration_of_minimum", ""),
+        "objective_value": "",
+        "minimum_objective_value": "",
+        "iteration_of_minimum": "",
         "random_seed": optimizer_seed,
         "status": "failed",
         "parameter_configuration": configuration_json,
-        "elapsed_seconds": elapsed_seconds,
+        "elapsed_seconds": "",
         "error_message": f"{type(error).__name__}: {error}",
     }
 
 
 def smoke_test(tuning_results: dict[str, Any]) -> None:
     """Exercise every saved method/objective configuration without writing data."""
+    first_seed = run_seeds(tuning_results)[0]
     for method in MATRIX_RECOVERY_REGISTRY:
         for objective_name in OBJECTIVE_NAMES:
-            optimizer, _ = build_optimizer(tuning_results, method, objective_name)
+            optimizer, _ = build_optimizer(tuning_results, method, objective_name, first_seed)
             run_optimizer(optimizer, keep_trace=False, iterations=1, require_full_budget=False)
             print(f"Smoke test passed: {method} / {objective_name}")

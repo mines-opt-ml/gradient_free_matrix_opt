@@ -1,4 +1,10 @@
-"""Tune every recovery method registered by ZOOM.
+"""Tune samps_per_iter for every recovery method registered by ZOOM.
+
+For each method and objective, every candidate value of ``samps_per_iter`` is
+run to the full query budget and the value with the lowest last-iterate loss
+is selected. For lozo, which requires low-rank sampling, the sampling rank is
+tuned jointly with samps_per_iter over a small grid. All other parameters are
+fixed at the defaults below.
 
 Run from the repository root with:
 
@@ -9,6 +15,7 @@ The only output file is ``best_hyperparameters.json`` in this directory.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import sys
@@ -29,7 +36,12 @@ from recovery.registry import MATRIX_RECOVERY_REGISTRY
 
 OUTPUT_FILE = Path(__file__).with_name("best_hyperparameters.json")
 
-ITERATIONS = 5000
+# The query budget is the real stopping condition; ITERATIONS is only a cap so
+# a configuration that somehow spends no queries cannot loop forever. It must
+# stay above MAX_QUERIES / min(SAMPLE_CANDIDATES), or the cheapest candidate
+# would be stopped by the cap instead of the budget and its last-iterate loss
+# would not be comparable to the others.
+ITERATIONS = 10_000
 MAX_QUERIES = 50_000
 MATRIX_SIZE = 30
 OBJECTIVE_RANK = 3
@@ -37,71 +49,44 @@ DATA_SEED = 2025
 INITIALIZATION_SEED = 2026
 OPTIMIZER_SEED = 2027
 
+# Tuned for every method.
+SAMPLE_CANDIDATES = [8, 32, 64, 128, 256, 512]
+# Tuned for lozo only, which requires low-rank sampling instead of the
+# full-rank scheme every other method uses.
+SAMPLING_RANK_CANDIDATES = [4, 8, 16]
 
-# Every numeric parameter has five candidate values. Parameters whose entire
-# valid domain has two choices are tested at both choices.
-CANDIDATES: dict[str, list[Any]] = {
-    "samps_per_iter": [8, 32, 64, 128, 256, 512],
-    "step_size": [0.3],
-    "iters": [10, 15, 20],
-    "linesearch": [True],
-    "sampling_scheme": ["full-rank"],
-    "sampling_dist": ["gaussian"],
-}
-
-
-# These defaults are only the starting point for coordinate search.
+# Fixed for every configuration, never tuned.
 BASE_DEFAULTS: dict[str, Any] = {
-    "samps_per_iter": 64,
     "step_size": 0.03,
-    # Problem constraint: fixed across every configuration, never tuned.
+    # Problem constraint: fixed across every configuration.
     "target_rank": OBJECTIVE_RANK,
     "linesearch": True,
     "sampling_scheme": "full-rank",
     "sampling_dist": "gaussian",
 }
 
+
+# The grid searched for each method, as {parameter: candidate values}. Every
+# combination is evaluated and the one with the lowest last-iterate loss wins.
+def search_space(method: str) -> dict[str, list[Any]]:
+    space: dict[str, list[Any]] = {"samps_per_iter": SAMPLE_CANDIDATES}
+    if method == "lozo":
+        space["sampling_scheme"] = SAMPLING_RANK_CANDIDATES
+    return space
+
+
+# Fixed recovery-side parameters, never tuned. Only parameters consumed by each
+# implementation are included.
 RECOVERY_DEFAULTS: dict[str, dict[str, Any]] = {
-    "alternating_projections": {"iters": 10},
-    "iterative_hard_thresholding": {"iters": 10},
-    "burer_monteiro_gradient_descent": {"iters": 10},
+    "alternating_projections": {"iters": 20},
+    "iterative_hard_thresholding": {"iters": 20},
+    "burer_monteiro_gradient_descent": {"iters": 20},
+    "IHT_SpecGD": {"iters": 20},
     "adjoint_sensing_operator": {},
-    "pseudoinverse": {"iters": 10},
-    "rangefinder": {},
-    "spectral_iterative_hard_thresholding": {"iters": 10},
+    "pseudoinverse": {"iters": 20},
+    "lozo": {},
 }
 
-
-# Only parameters consumed by each implementation are included. Rangefinder
-# creates its own samples, so it does not use samps_per_iter, sampling_scheme,
-# or sampling_dist. Rank-aware methods receive the fixed target_rank.
-SEARCH_PARAMETERS: dict[str, list[str]] = {
-    "alternating_projections": [
-        "iters",
-        "samps_per_iter",
-    ],
-    "iterative_hard_thresholding": [
-        "iters",
-        "samps_per_iter",
-    ],
-    "burer_monteiro_gradient_descent": [
-        "iters",
-        "samps_per_iter",
-    ],
-    "adjoint_sensing_operator": [
-        "samps_per_iter",
-    ],
-    "pseudoinverse": [
-        "samps_per_iter",
-    ],
-    "rangefinder": [],
-    "spectral_iterative_hard_thresholding": [
-        "iters",
-        "samps_per_iter",
-    ],
-}
-
-RECOVERY_PARAMETER_NAMES = {"iters"}
 OBJECTIVE_NAMES = ("ky_fan_regression", "singular_value_sum")
 
 
@@ -135,7 +120,7 @@ def evaluate(
     base_parameters: dict[str, Any],
     recovery_parameters: dict[str, Any],
 ) -> tuple[float, int]:
-    """Return the minimum value attained before reaching MAX_QUERIES."""
+    """Return the last-iterate loss and iteration count at MAX_QUERIES."""
     optimizer = BaseMatrixOptimizer(
         X0=make_initial_matrix(),
         rand_seed=OPTIMIZER_SEED,
@@ -154,25 +139,22 @@ def evaluate(
         recovery_params=recovery_parameters,
     )
 
-    best_value = math.inf
-    iteration_of_best = 0
-
     for iteration in range(1, ITERATIONS + 1):
         # Exceptions deliberately propagate: a problem in the provided
         # optimizer, objective, or recovery implementation stops the study.
         optimizer.step()
-        value = float(optimizer.function_values[-1])
         if optimizer.reached_query_budget():
-            print(f"reached query budget at iteration {iteration}")
             break
-        if math.isfinite(value) and value < best_value:
-            best_value = value
-            iteration_of_best = iteration
+    else:
+        raise RuntimeError(
+            f"Hit the {ITERATIONS}-iteration cap after only {optimizer.number_of_queries_made} "
+            f"of {optimizer.max_queries} queries; raise ITERATIONS"
+        )
 
-    if not math.isfinite(best_value):
-        raise FloatingPointError(f"{method} on {objective_name} produced no finite objective value")
-
-    return best_value, iteration_of_best
+    final_value = float(optimizer.function_values[-1])
+    if not math.isfinite(final_value):
+        raise FloatingPointError(f"{method} on {objective_name} produced a non-finite final objective value")
+    return final_value, iteration
 
 
 def save_results(results: dict[str, Any]) -> None:
@@ -183,50 +165,35 @@ def save_results(results: dict[str, Any]) -> None:
 
 
 def tune(method: str, objective_name: str) -> dict[str, Any]:
-    """Run one readable, single-pass coordinate search."""
-    base_parameters = BASE_DEFAULTS.copy()
+    """Grid-search the method's space and keep the lowest last-iterate loss."""
     recovery_parameters = RECOVERY_DEFAULTS[method].copy()
-    best_value = math.inf
-    iteration_of_best = 0
+    space = search_space(method)
+    parameter_names = list(space)
 
     print(f"\n{method} / {objective_name}", flush=True)
 
-    for parameter in SEARCH_PARAMETERS[method]:
-        candidate_results = []
+    candidate_results = []
+    for combination in itertools.product(*(space[name] for name in parameter_names)):
+        overrides = dict(zip(parameter_names, combination))
+        trial_base = {**BASE_DEFAULTS, **overrides}
+        final_value, iterations = evaluate(method, objective_name, trial_base, recovery_parameters)
+        candidate_results.append((final_value, list(combination)))
+        settings = ", ".join(f"{name}={value}" for name, value in overrides.items())
+        print(f"  {settings}: final={final_value:.10g} after {iterations} iterations", flush=True)
 
-        for candidate in CANDIDATES[parameter]:
-            trial_base = base_parameters.copy()
-            trial_recovery = recovery_parameters.copy()
-            destination = trial_recovery if parameter in RECOVERY_PARAMETER_NAMES else trial_base
-            destination[parameter] = candidate
-
-            value, best_iteration = evaluate(
-                method,
-                objective_name,
-                trial_base,
-                trial_recovery,
-            )
-            candidate_results.append((value, best_iteration, candidate))
-            print(
-                f"  {parameter}={candidate!r}: minimum={value:.10g} at iteration {best_iteration}",
-                flush=True,
-            )
-
-        best_value, iteration_of_best, selected = min(candidate_results)
-        destination = recovery_parameters if parameter in RECOVERY_PARAMETER_NAMES else base_parameters
-        destination[parameter] = selected
-        print(f"  selected {parameter}={selected!r}", flush=True)
+    final_value, selected = min(candidate_results)
+    selected_overrides = dict(zip(parameter_names, selected))
+    print(f"  selected {', '.join(f'{name}={value}' for name, value in selected_overrides.items())}", flush=True)
 
     return {
-        "minimum_objective_value": best_value,
-        "iteration_of_minimum": iteration_of_best,
-        "base_optimizer_parameters": base_parameters,
+        "final_objective_value": final_value,
+        "base_optimizer_parameters": {**BASE_DEFAULTS, **selected_overrides},
         "recovery_parameters": recovery_parameters,
     }
 
 
 def main() -> None:
-    missing = set(MATRIX_RECOVERY_REGISTRY) - set(SEARCH_PARAMETERS)
+    missing = set(MATRIX_RECOVERY_REGISTRY) - set(RECOVERY_DEFAULTS)
     if missing:
         raise RuntimeError(f"Registry methods missing from tuning setup: {missing}")
 
@@ -234,21 +201,22 @@ def main() -> None:
         with OUTPUT_FILE.open(encoding="utf-8") as file:
             results: dict[str, Any] = json.load(file)
         results["experiment"]["status"] = "running"
-        results["experiment"].pop("stopped_reason", None)
     else:
         results = {
             "experiment": {
                 "status": "running",
-                "search_strategy": "single-pass sequential coordinate search",
-                "iterations_per_configuration": ITERATIONS,
+                "search_strategy": "grid search selected by last-iterate loss",
+                "max_queries": MAX_QUERIES,
                 "matrix_shape": [MATRIX_SIZE, MATRIX_SIZE],
                 "objective_rank": OBJECTIVE_RANK,
                 "data_seed": DATA_SEED,
                 "initialization_seed": INITIALIZATION_SEED,
                 "optimizer_seed": OPTIMIZER_SEED,
                 "objective_noise": 0.0,
-                "candidate_values": CANDIDATES,
-                "search_parameters_by_method": SEARCH_PARAMETERS,
+                "candidate_values": {
+                    "samps_per_iter": SAMPLE_CANDIDATES,
+                    "sampling_scheme (lozo only)": SAMPLING_RANK_CANDIDATES,
+                },
             },
             "best_parameters": {},
         }

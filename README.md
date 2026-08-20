@@ -65,7 +65,7 @@ arguments. These are generated internally and are not part of
 | `iterative_hard_thresholding` | `iters` | `iters` is the number of hard-thresholding iterations. The projection rank is the optimizer's `target_rank`. |
 | `spectral_iterative_hard_thresholding` | `iters` | Uses the optimizer's `target_rank` and the same iterations as IHT but returns the final spectral direction `U_r @ V_r.T` without the singular values. |
 | `pseudoinverse` (`pseudo_inverse_CG`) | `iters` | `iters` is the maximum number of conjugate-gradient iterations. The solver tolerance is currently fixed at `1e-7`. |
-| `rangefinder` | `{}` | Uses the optimizer's `target_rank`, `sampling_radius`, objective function, and generated JAX key. It does not use `samps_per_iter`. |
+| `lozo` | `{}` | Has no method-specific parameters. Requires a low-rank (integer) `sampling_scheme` on the optimizer. |
 
 Example recovery dictionaries:
 
@@ -76,7 +76,7 @@ burer_monteiro_params = {"iters": 5}
 iht_params = {"iters": 5}
 spectral_iht_params = {"iters": 5}
 pseudoinverse_params = {"iters": 5}
-rangefinder_params = {}
+lozo_params = {}
 ```
 
 ## Objective function parameters
@@ -123,32 +123,11 @@ The current singular-value objective is
 
 ## Tuned hyperparameters
 
-The configurations below are the winners from a single-pass sequential
-coordinate search on fixed 30-by-30, rank-three problems. Every candidate was
-run for exactly 1,000 optimizer steps, and the score was the minimum objective
-value observed during those steps. The data, initialization, and optimizer
-seeds were 2025, 2026, and 2027, respectively. `target_rank=3` was fixed as a
-problem constraint and was not tuned.
-
-Directional-derivative methods do not use `sampling_radius`. Rangefinder does
-not use `samps_per_iter`, `sampling_scheme`, or `sampling_dist`; dashes mark
-those inapplicable settings below. The complete machine-readable
-configurations and search metadata are in
-`hyperparameter_tuning/best_hyperparameters.json`.
-
-| Recovery algorithm | Objective | `iters` | `samps_per_iter` | `step_size` | `sampling_radius` | `linesearch` | `sampling_scheme` | `sampling_dist` | Minimum objective |
-| --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | ---: |
-| `adjoint_sensing_operator` | Matrix regression | — | 64 | 0.03 | — | `False` | `rank_one` | `gaussian` | 1.011278226e-14 |
-| `adjoint_sensing_operator` | Singular-value sum | — | 256 | 0.1 | — | `False` | `full-rank` | `rademacher` | 5.723925857e-21 |
-| `alternating_projections` | Matrix regression | 3 | 256 | 0.1 | — | `False` | `full-rank` | `gaussian` | 8.586539852e-15 |
-| `alternating_projections` | Singular-value sum | 5 | 256 | 0.3 | — | `False` | `full-rank` | `rademacher` | 0.0 |
-| `burer_monteiro_gradient_descent` | Matrix regression | 10 | 256 | 0.1 | — | `False` | `full-rank` | `gaussian` | 6.554761074e-15 |
-| `burer_monteiro_gradient_descent` | Singular-value sum | 5 | 256 | 0.1 | — | `True` | `full-rank` | `gaussian` | 0.0 |
-| `iterative_hard_thresholding` | Matrix regression | 2 | 256 | 0.1 | — | `False` | `full-rank` | `rademacher` | 6.130549610e-15 |
-| `iterative_hard_thresholding` | Singular-value sum | 2 | 256 | 0.3 | — | `False` | `full-rank` | `rademacher` | 0.0 |
-| `pseudoinverse` | Matrix regression | 10 | 256 | 0.3 | — | `False` | `rank_one` | `gaussian` | 3.716763208e-15 |
-| `pseudoinverse` | Singular-value sum | 10 | 256 | 0.3 | — | `False` | `rank_one` | `gaussian` | 4.810729564e-26 |
-| `rangefinder` | Matrix regression | — | — | 0.03 | 1e-5 | `False` | — | — | 7.731069673e-10 |
-| `rangefinder` | Singular-value sum | — | — | 0.3 | 1e-5 | `True` | — | — | 2.396905341e-9 |
-| `spectral_iterative_hard_thresholding` | Matrix regression | 2 | 256 | 0.003 | — | `True` | `full-rank` | `gaussian` | 8.971979696e-6 |
-| `spectral_iterative_hard_thresholding` | Singular-value sum | 2 | 256 | 0.003 | — | `True` | `full-rank` | `gaussian` | 5.256619716e-6 |
+`hyperparameter_tuning/run_tuning.py` tunes `samps_per_iter` for every
+registered recovery method (plus the sampling rank for `lozo`) on fixed
+30-by-30, rank-three problems, selecting by last-iterate loss at the query
+budget. All other parameters are fixed; `target_rank=3` is a problem
+constraint and is not tuned. The complete machine-readable configurations and
+search metadata are written to
+`hyperparameter_tuning/best_hyperparameters.json`, which the final experiment
+in `experiments/final_experiments/` reads.

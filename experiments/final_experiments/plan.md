@@ -1,0 +1,5 @@
+1. Remove all references to rangefinder.
+2. In `utils` there is a class `FailOnRecoveryOutput` that existed solely to deal with an idiosyncracy of the `iterative_hard_thresholding` routine. That idiosyncracy no longer exists. So, you can remove `FailOnRecoveryOutput` and all calls/references to it.
+3. I also want you to look at the folder `hyperparameter_tuning`. I only want to tune `samps_per_iter`. Also, I only want to tune based on last-iterate loss, not best-iterate. Also, remove any references to rangefinder.
+4. I only want one experiment now, the `query_experiment`. You can remove `run_sample_experiment.py`. Also, remove and/or simplify anything in `utils.py` that is adapted for this experiment.
+5. For the query experiment, I'd like to do 10 runs for each method, for each objective function, with different random seeds. These should be saved as a csv. `plot_results.ipynb` should be suitably modified so as to expect this.
