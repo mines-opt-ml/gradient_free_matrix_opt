@@ -1,9 +1,8 @@
-# ZOOM
-Zeroth order optimization for Matrices
+# Gradient Free Optimization for Matrix Functions
 
 ## Installation instructions
 
-ZOOM requires Python 3.12. You can use the package manager of your choice;
+This package requires Python 3.12. You can use the package manager of your choice;
 instructions for `uv` and Conda are provided below. Run the commands from the
 repository root.
 
@@ -29,8 +28,8 @@ You can also activate the generated `.venv` manually if desired.
 Create and activate a Python 3.12 environment:
 
 ```bash
-conda create --name ZOOM python=3.12 pip
-conda activate ZOOM
+conda create --name GFOPT python=3.12 pip
+conda activate GFOPT
 ```
 
 Then use the environment's Python installation to install ZOOM and the
